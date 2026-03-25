@@ -6,7 +6,9 @@ export async function POST(request: NextRequest) {
   const input = (await request.json()) as ExpenseInput;
 
   try {
-    const state = mutateExpenseHubState((current) => addExpenseToState(current, input));
+    const state = await mutateExpenseHubState((current) =>
+      addExpenseToState(current, input)
+    );
     return NextResponse.json({ state });
   } catch (error) {
     return NextResponse.json(

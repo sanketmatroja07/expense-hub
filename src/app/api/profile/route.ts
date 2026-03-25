@@ -6,7 +6,7 @@ import { mutateExpenseHubState } from "@/lib/server/expense-hub-db";
 export async function PATCH(request: NextRequest) {
   const updates = (await request.json()) as Partial<User>;
 
-  const state = mutateExpenseHubState((current) =>
+  const state = await mutateExpenseHubState((current) =>
     updateCurrentUserInState(current, updates)
   );
   return NextResponse.json({ state });

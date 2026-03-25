@@ -10,8 +10,8 @@ interface GroupDetailPageProps {
   };
 }
 
-export default function GroupDetailPage({ params }: GroupDetailPageProps) {
-  const state = readExpenseHubState();
+export default async function GroupDetailPage({ params }: GroupDetailPageProps) {
+  const state = await readExpenseHubState();
   const groupExists = state.groups.some((group) => group.id === params.groupId);
 
   if (!groupExists) {

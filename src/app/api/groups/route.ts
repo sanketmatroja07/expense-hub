@@ -6,7 +6,9 @@ export async function POST(request: NextRequest) {
   const input = (await request.json()) as CreateGroupInput;
 
   try {
-    const state = mutateExpenseHubState((current) => createGroupInState(current, input));
+    const state = await mutateExpenseHubState((current) =>
+      createGroupInState(current, input)
+    );
     return NextResponse.json({ state });
   } catch (error) {
     return NextResponse.json(
