@@ -232,9 +232,13 @@ export default function SettingsPage() {
                         <input
                           type="email"
                           value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="input"
+                          disabled
+                          readOnly
+                          className="input bg-neutral-100 text-neutral-500 cursor-not-allowed"
                         />
+                        <p className="text-xs text-neutral-500 mt-2">
+                          Your sign-in email is managed through your authenticated account.
+                        </p>
                       </div>
 
                       <div>

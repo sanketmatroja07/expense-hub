@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   applyTheme,
   computeBalances,
@@ -72,6 +73,8 @@ async function requestState<T>(
 }
 
 export function ExpenseHubProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
   const [state, setState] = useState<ExpenseHubState>(seedState);
   const [hydrated, setHydrated] = useState(false);
 
@@ -84,6 +87,22 @@ export function ExpenseHubProvider({ children }: { children: ReactNode }) {
           setState(nextState);
         }
       })
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
+
+        if (
+          error instanceof Error &&
+          error.message.toLowerCase().includes("unauthorized") &&
+          pathname !== "/auth"
+        ) {
+          router.replace("/auth");
+          return;
+        }
+
+        console.error(error);
+      })
       .finally(() => {
         if (active) {
           setHydrated(true);
@@ -93,7 +112,7 @@ export function ExpenseHubProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [pathname, router]);
 
   useEffect(() => {
     applyTheme(state.preferences.theme);

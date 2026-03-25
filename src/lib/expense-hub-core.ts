@@ -44,6 +44,12 @@ export interface AppPreferences {
   privacy: PrivacyPreferences;
 }
 
+export interface AuthIdentity {
+  id: string;
+  email: string;
+  name: string;
+}
+
 export interface ExpenseHubState {
   currentUserId: string;
   users: User[];
@@ -132,6 +138,101 @@ export const seedState: ExpenseHubState = {
   notifications: seedNotifications,
   preferences: defaultPreferences,
 };
+
+export function getDisplayNameFromEmail(email: string) {
+  const local = email.split("@")[0] || "expensehub";
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function replaceUserReference(
+  user: User,
+  fromId: string,
+  toUser: User
+): User {
+  return user.id === fromId ? { ...user, ...toUser } : user;
+}
+
+export function syncStateWithIdentity(
+  state: ExpenseHubState,
+  identity: AuthIdentity
+): ExpenseHubState {
+  const existingCurrentUser =
+    state.users.find((user) => user.id === state.currentUserId) ??
+    state.users.find((user) => user.id === seedCurrentUser.id) ??
+    seedCurrentUser;
+
+  const isSeedBackedUser =
+    state.currentUserId === seedCurrentUser.id ||
+    existingCurrentUser.id === seedCurrentUser.id;
+
+  const authUser: User = {
+    ...existingCurrentUser,
+    id: identity.id,
+    email: identity.email,
+    name:
+      !isSeedBackedUser && existingCurrentUser.name
+        ? existingCurrentUser.name
+        : identity.name,
+  };
+
+  const replaceId = (userId: string) =>
+    userId === state.currentUserId || userId === seedCurrentUser.id
+      ? identity.id
+      : userId;
+
+  const nextUsers = dedupeUsers(
+    state.users
+      .filter(
+        (user) => user.id !== state.currentUserId && user.id !== seedCurrentUser.id
+      )
+      .concat(authUser)
+  );
+
+  return {
+    ...state,
+    currentUserId: identity.id,
+    users: nextUsers,
+    groups: state.groups.map((group) => ({
+      ...group,
+      members: group.members.map((member) => ({
+        ...member,
+        ...(member.id === state.currentUserId || member.id === seedCurrentUser.id
+          ? {
+              name: authUser.name,
+              email: authUser.email,
+              avatar: authUser.avatar,
+              phone: authUser.phone,
+            }
+          : {}),
+        id: replaceId(member.id),
+      })),
+    })),
+    expenses: state.expenses.map((expense) => ({
+      ...expense,
+      paidBy: replaceUserReference(expense.paidBy, state.currentUserId, authUser),
+      splits: expense.splits.map((split) => ({
+        ...split,
+        userId: replaceId(split.userId),
+        user: replaceUserReference(split.user, state.currentUserId, authUser),
+      })),
+    })),
+    payments: state.payments.map((payment) => ({
+      ...payment,
+      fromUser: replaceUserReference(payment.fromUser, state.currentUserId, authUser),
+      toUser: replaceUserReference(payment.toUser, state.currentUserId, authUser),
+    })),
+    notifications: state.notifications,
+    preferences: state.preferences,
+  };
+}
+
+export function createSeedStateForIdentity(identity: AuthIdentity) {
+  return syncStateWithIdentity(seedState, identity);
+}
 
 export function roundCurrency(value: number) {
   return Math.round(value * 100) / 100;

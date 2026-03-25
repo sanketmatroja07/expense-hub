@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell,
@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/utils";
 import { useExpenseHub } from "@/lib/expense-hub-store";
+import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -41,11 +42,35 @@ const userMenuItems = [
 
 export function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { notifications, currentUser, markAllNotificationsRead, unreadCount } =
     useExpenseHub();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    try {
+      setSigningOut(true);
+      setUserMenuOpen(false);
+      setNotificationsOpen(false);
+      setMobileMenuOpen(false);
+
+      const supabase = createClient();
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        throw error;
+      }
+
+      router.replace("/auth");
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setSigningOut(false);
+    }
+  };
 
   return (
     <>
@@ -254,9 +279,13 @@ export function Navbar() {
                         ))}
                       </div>
                       <div className="border-t border-neutral-100 py-2">
-                        <button className="dropdown-item w-full text-danger-600 hover:bg-danger-50">
+                        <button
+                          onClick={handleSignOut}
+                          disabled={signingOut}
+                          className="dropdown-item w-full text-danger-600 hover:bg-danger-50 disabled:opacity-60"
+                        >
                           <LogOut className="w-4 h-4" />
-                          Sign out
+                          {signingOut ? "Signing out..." : "Sign out"}
                         </button>
                       </div>
                     </motion.div>

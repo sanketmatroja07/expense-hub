@@ -1,7 +1,12 @@
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { seedState, type ExpenseHubState } from "@/lib/expense-hub-core";
+import {
+  createSeedStateForIdentity,
+  syncStateWithIdentity,
+  type AuthIdentity,
+  type ExpenseHubState,
+} from "@/lib/expense-hub-core";
 
 const defaultDbPath = join(process.cwd(), "data", "expense-hub.sqlite");
 const databasePath = process.env.EXPENSE_HUB_DB_PATH || defaultDbPath;
@@ -9,7 +14,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseBucket = process.env.SUPABASE_STORAGE_BUCKET || "expense-hub";
 const supabaseObjectPath =
-  process.env.SUPABASE_STORAGE_PATH || "state/expense-hub.json";
+  process.env.SUPABASE_STORAGE_PATH || "state";
 
 let database: DatabaseSync | null = null;
 
@@ -26,26 +31,20 @@ function getDatabase() {
   database = new DatabaseSync(databasePath);
   database.exec(`
     CREATE TABLE IF NOT EXISTS app_state (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
+      user_id TEXT PRIMARY KEY,
       data TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
   `);
 
-  const existing = database
-    .prepare("SELECT data FROM app_state WHERE id = 1")
-    .get() as { data?: string } | undefined;
-
-  if (!existing?.data) {
-    const now = new Date().toISOString();
-    database
-      .prepare(
-        "INSERT INTO app_state (id, data, updated_at) VALUES (1, ?, ?)"
-      )
-      .run(JSON.stringify(seedState), now);
-  }
-
   return database;
+}
+
+function getUserScopedObjectPath(userId: string) {
+  if (supabaseObjectPath.endsWith(".json")) {
+    return supabaseObjectPath.replace(/\.json$/, `-${userId}.json`);
+  }
+  return `${supabaseObjectPath.replace(/\/$/, "")}/${userId}.json`;
 }
 
 async function supabaseRequest(
@@ -88,72 +87,93 @@ async function ensureSupabaseBucket() {
   });
 }
 
-async function readSupabaseState() {
+async function readSupabaseState(identity: AuthIdentity) {
   await ensureSupabaseBucket();
   const response = await supabaseRequest(
-    `/storage/v1/object/${supabaseBucket}/${supabaseObjectPath}`,
+    `/storage/v1/object/${supabaseBucket}/${getUserScopedObjectPath(identity.id)}`,
     { method: "GET", expectedStatuses: [404] }
   );
 
   if (response.status === 404) {
-    await writeSupabaseState(seedState, false);
-    return seedState;
+    const seededState = createSeedStateForIdentity(identity);
+    await writeSupabaseState(identity, seededState, false);
+    return seededState;
   }
 
-  return (await response.json()) as ExpenseHubState;
+  const storedState = (await response.json()) as ExpenseHubState;
+  return syncStateWithIdentity(storedState, identity);
 }
 
 async function writeSupabaseState(
+  identity: AuthIdentity,
   state: ExpenseHubState,
   updateExisting: boolean = true
 ) {
   await ensureSupabaseBucket();
-  await supabaseRequest(`/storage/v1/object/${supabaseBucket}/${supabaseObjectPath}`, {
-    method: updateExisting ? "PUT" : "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-upsert": "true",
-    },
-    body: JSON.stringify(state),
-  });
+  await supabaseRequest(
+    `/storage/v1/object/${supabaseBucket}/${getUserScopedObjectPath(identity.id)}`,
+    {
+      method: updateExisting ? "PUT" : "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-upsert": "true",
+      },
+      body: JSON.stringify(syncStateWithIdentity(state, identity)),
+    }
+  );
 }
 
-function readLocalState(): ExpenseHubState {
+function readLocalState(identity: AuthIdentity): ExpenseHubState {
   const db = getDatabase();
   const row = db
-    .prepare("SELECT data FROM app_state WHERE id = 1")
-    .get() as { data: string };
+    .prepare("SELECT data FROM app_state WHERE user_id = ?")
+    .get(identity.id) as { data?: string } | undefined;
 
-  return JSON.parse(row.data) as ExpenseHubState;
+  if (!row?.data) {
+    const seededState = createSeedStateForIdentity(identity);
+    writeLocalState(identity, seededState);
+    return seededState;
+  }
+
+  return syncStateWithIdentity(JSON.parse(row.data) as ExpenseHubState, identity);
 }
 
-function writeLocalState(state: ExpenseHubState) {
+function writeLocalState(identity: AuthIdentity, state: ExpenseHubState) {
   const db = getDatabase();
-  db.prepare("UPDATE app_state SET data = ?, updated_at = ? WHERE id = 1").run(
-    JSON.stringify(state),
+  db.prepare(
+    "INSERT OR REPLACE INTO app_state (user_id, data, updated_at) VALUES (?, ?, ?)"
+  ).run(
+    identity.id,
+    JSON.stringify(syncStateWithIdentity(state, identity)),
     new Date().toISOString()
   );
 }
 
-export async function readExpenseHubState(): Promise<ExpenseHubState> {
+export async function readExpenseHubState(
+  identity: AuthIdentity
+): Promise<ExpenseHubState> {
   if (usingHostedStorage()) {
-    return readSupabaseState();
+    return readSupabaseState(identity);
   }
-  return readLocalState();
+  return readLocalState(identity);
 }
 
-export async function writeExpenseHubState(state: ExpenseHubState) {
+export async function writeExpenseHubState(
+  identity: AuthIdentity,
+  state: ExpenseHubState
+) {
   if (usingHostedStorage()) {
-    await writeSupabaseState(state);
+    await writeSupabaseState(identity, state);
     return;
   }
-  writeLocalState(state);
+  writeLocalState(identity, state);
 }
 
 export async function mutateExpenseHubState(
+  identity: AuthIdentity,
   mutator: (state: ExpenseHubState) => ExpenseHubState
 ) {
-  const nextState = mutator(await readExpenseHubState());
-  await writeExpenseHubState(nextState);
+  const nextState = mutator(await readExpenseHubState(identity));
+  await writeExpenseHubState(identity, nextState);
   return nextState;
 }
