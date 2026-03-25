@@ -1,0 +1,24 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules
+.next
+out
+dist
+coverage
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.mypy_cache/
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+
+
