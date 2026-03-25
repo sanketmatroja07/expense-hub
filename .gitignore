@@ -6,6 +6,7 @@
 # Node
 node_modules
 .next
+data
 out
 dist
 coverage
@@ -20,5 +21,4 @@ __pycache__/
 # IDE
 .idea/
 .vscode/
-
 
