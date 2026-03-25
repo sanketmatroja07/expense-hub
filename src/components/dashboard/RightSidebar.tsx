@@ -12,20 +12,17 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { cn, formatCurrency, getInitials } from "@/lib/utils";
-import {
-  monthlySpendingData,
-  categorySpendingData,
-  balances as mockBalances,
-} from "@/lib/mock-data";
+import { formatCurrency, getInitials } from "@/lib/utils";
+import { useExpenseHub } from "@/lib/expense-hub-store";
 
 interface RightSidebarProps {
   onSettleUp: () => void;
 }
 
 export function RightSidebar({ onSettleUp }: RightSidebarProps) {
-  const youOwe = mockBalances.filter((b) => b.amount < 0);
-  const owedToYou = mockBalances.filter((b) => b.amount > 0);
+  const { balances, monthlySpendingData, categorySpendingData } = useExpenseHub();
+  const youOwe = balances.filter((balance) => balance.amount < 0);
+  const owedToYou = balances.filter((balance) => balance.amount > 0);
 
   return (
     <aside className="w-80 flex-shrink-0 hidden xl:block">

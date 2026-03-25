@@ -10,7 +10,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn, formatCurrency, getInitials } from "@/lib/utils";
-import { groups as mockGroups } from "@/lib/mock-data";
+import { useExpenseHub } from "@/lib/expense-hub-store";
 
 const quickFilters = [
   { id: "all", label: "All", count: 12 },
@@ -26,6 +26,7 @@ interface SidebarProps {
 
 export function Sidebar({ onAddExpense, onCreateGroup }: SidebarProps) {
   const [activeFilter, setActiveFilter] = useState("all");
+  const { groups, currentUser } = useExpenseHub();
 
   return (
     <aside className="w-72 flex-shrink-0 hidden lg:block">
@@ -53,7 +54,7 @@ export function Sidebar({ onAddExpense, onCreateGroup }: SidebarProps) {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-neutral-900">My Groups</h3>
-              <span className="badge-primary">{mockGroups.length}</span>
+              <span className="badge-primary">{groups.length}</span>
             </div>
             <Link
               href="/groups"
@@ -64,9 +65,9 @@ export function Sidebar({ onAddExpense, onCreateGroup }: SidebarProps) {
           </div>
 
           <div className="space-y-1">
-            {mockGroups.map((group, index) => {
+            {groups.map((group, index) => {
               const userBalance = group.members.find(
-                (m) => m.id === "user-1"
+                (m) => m.id === currentUser.id
               )?.balance;
               const isPositive = userBalance && userBalance > 0;
 

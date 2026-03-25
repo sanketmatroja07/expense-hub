@@ -18,12 +18,14 @@ import {
 import { Navbar, MobileNav } from "@/components/layout";
 import { AddExpenseModal } from "@/components/modals";
 import { cn, formatCurrency, formatDate, getInitials } from "@/lib/utils";
-import { expenses as mockExpenses, CATEGORIES } from "@/lib/mock-data";
+import { CATEGORIES } from "@/lib/mock-data";
+import { useExpenseHub } from "@/lib/expense-hub-store";
 
 type ViewMode = "list" | "grid" | "calendar";
 type SortBy = "date" | "amount" | "category";
 
 export default function PersonalPage() {
+  const { expenses, currentUser } = useExpenseHub();
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [sortBy, setSortBy] = useState<SortBy>("date");
@@ -34,8 +36,8 @@ export default function PersonalPage() {
   const [amountRange, setAmountRange] = useState({ min: "", max: "" });
 
   // Filter to personal expenses only (no splits with others)
-  const personalExpenses = mockExpenses.filter(
-    (exp) => exp.splits.length === 1 && exp.paidBy.id === "user-1"
+  const personalExpenses = expenses.filter(
+    (exp) => exp.splits.length === 1 && exp.paidBy.id === currentUser.id
   );
 
   // Apply filters

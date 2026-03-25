@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -9,12 +9,12 @@ import {
   ChevronDown,
   Check,
   Upload,
-  Image as ImageIcon,
   Trash2,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
-import { CATEGORIES, users } from "@/lib/mock-data";
+import { CATEGORIES } from "@/lib/mock-data";
 import { SplitType } from "@/lib/types";
+import { useExpenseHub } from "@/lib/expense-hub-store";
 
 interface AddExpenseModalProps {
   isOpen: boolean;
@@ -50,22 +50,74 @@ export function AddExpenseModal({
   onClose,
   groupId,
 }: AddExpenseModalProps) {
+  const { addExpense, currentUser, groups } = useExpenseHub();
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("food");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [paidBy, setPaidBy] = useState("user-1");
+  const [paidBy, setPaidBy] = useState(currentUser.id);
   const [splitType, setSplitType] = useState<SplitType>("equal");
-  const [selectedMembers, setSelectedMembers] = useState<string[]>(["user-1"]);
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([currentUser.id]);
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
   const [receipt, setReceipt] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [selectedGroupId, setSelectedGroupId] = useState(groupId || "");
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showPaidByDropdown, setShowPaidByDropdown] = useState(false);
+  const [showGroupDropdown, setShowGroupDropdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  const availableMembers = users.slice(0, 5);
+  const selectedGroup = groups.find((group) => group.id === selectedGroupId);
+  const availableMembers = selectedGroup ? selectedGroup.members : [currentUser];
   const selectedCategory = CATEGORIES.find((c) => c.name === category);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const initialGroupId = groupId || "";
+    const initialGroup = groups.find((group) => group.id === initialGroupId);
+    setAmount("");
+    setDescription("");
+    setCategory("food");
+    setDate(new Date().toISOString().split("T")[0]);
+    setPaidBy(currentUser.id);
+    setSplitType(initialGroup ? "equal" : "full");
+    setSelectedMembers(
+      initialGroup ? initialGroup.members.map((member) => member.id) : [currentUser.id]
+    );
+    setCustomAmounts({});
+    setReceipt(null);
+    setNotes("");
+    setSelectedGroupId(initialGroupId);
+    setShowCategoryDropdown(false);
+    setShowPaidByDropdown(false);
+    setShowGroupDropdown(false);
+    setFormError("");
+    setIsLoading(false);
+  }, [currentUser.id, groupId, groups, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    if (selectedGroup) {
+      setSelectedMembers(selectedGroup.members.map((member) => member.id));
+      if (!selectedGroup.members.some((member) => member.id === paidBy)) {
+        setPaidBy(currentUser.id);
+      }
+      if (splitType === "full") {
+        setSplitType("equal");
+      }
+    } else {
+      setSelectedMembers([currentUser.id]);
+      setPaidBy(currentUser.id);
+      setSplitType("full");
+    }
+  }, [currentUser.id, isOpen, paidBy, selectedGroup, splitType]);
 
   const toggleMember = (userId: string) => {
     setSelectedMembers((prev) =>
@@ -80,11 +132,30 @@ export function AddExpenseModal({
   };
 
   const handleSubmit = async () => {
-    setIsLoading(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsLoading(false);
-    onClose();
+    try {
+      setFormError("");
+      setIsLoading(true);
+      await addExpense({
+        amount: Number.parseFloat(amount),
+        description,
+        category,
+        date,
+        paidBy,
+        splitType,
+        selectedMembers,
+        customAmounts,
+        receipt,
+        notes,
+        groupId: selectedGroupId || undefined,
+      });
+      onClose();
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : "Unable to save this expense."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -152,6 +223,69 @@ export function AddExpenseModal({
               placeholder="What was this expense for?"
               className="input"
             />
+          </div>
+
+          <div className="relative">
+            <label className="text-sm font-medium text-neutral-700 mb-2 block">
+              Group
+            </label>
+            <button
+              onClick={() => setShowGroupDropdown(!showGroupDropdown)}
+              className="input flex items-center justify-between"
+            >
+              <span className="truncate">
+                {selectedGroup
+                  ? `${selectedGroup.emoji || "👥"} ${selectedGroup.name}`
+                  : "Personal expense"}
+              </span>
+              <ChevronDown
+                className={cn(
+                  "w-5 h-5 text-neutral-400 transition-transform",
+                  showGroupDropdown && "rotate-180"
+                )}
+              />
+            </button>
+
+            <AnimatePresence>
+              {showGroupDropdown && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute z-50 top-full left-0 right-0 mt-2 bg-white rounded-xl border border-neutral-100 shadow-card overflow-hidden"
+                >
+                  <button
+                    onClick={() => {
+                      setSelectedGroupId("");
+                      setShowGroupDropdown(false);
+                    }}
+                    className={cn(
+                      "w-full text-left px-4 py-3 hover:bg-neutral-50 transition-colors",
+                      !selectedGroupId && "bg-primary-50"
+                    )}
+                  >
+                    <span className="text-sm font-medium">Personal expense</span>
+                  </button>
+                  {groups.map((group) => (
+                    <button
+                      key={group.id}
+                      onClick={() => {
+                        setSelectedGroupId(group.id);
+                        setShowGroupDropdown(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-4 py-3 hover:bg-neutral-50 transition-colors",
+                        selectedGroupId === group.id && "bg-primary-50"
+                      )}
+                    >
+                      <span className="text-sm font-medium">
+                        {group.emoji || "👥"} {group.name}
+                      </span>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Category and Date Row */}
@@ -302,6 +436,7 @@ export function AddExpenseModal({
           </div>
 
           {/* Split Type */}
+          {selectedGroup ? (
           <div>
             <label className="text-sm font-medium text-neutral-700 mb-3 block">
               Split Type
@@ -328,9 +463,10 @@ export function AddExpenseModal({
               ))}
             </div>
           </div>
+          ) : null}
 
           {/* Member Selection */}
-          {splitType !== "full" && (
+          {selectedGroup && splitType !== "full" && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 <label className="text-sm font-medium text-neutral-700">
@@ -462,6 +598,12 @@ export function AddExpenseModal({
               className="input resize-none"
             />
           </div>
+
+          {formError ? (
+            <div className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">
+              {formError}
+            </div>
+          ) : null}
         </div>
 
         {/* Footer */}
@@ -487,12 +629,13 @@ export function AddExpenseModal({
       </motion.div>
 
       {/* Click outside dropdowns to close */}
-      {(showCategoryDropdown || showPaidByDropdown) && (
+      {(showCategoryDropdown || showPaidByDropdown || showGroupDropdown) && (
         <div
           className="fixed inset-0 z-40"
           onClick={() => {
             setShowCategoryDropdown(false);
             setShowPaidByDropdown(false);
+            setShowGroupDropdown(false);
           }}
         />
       )}

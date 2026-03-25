@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -13,8 +13,9 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn, formatCurrency, getInitials } from "@/lib/utils";
-import { PAYMENT_METHODS, balances as mockBalances, currentUser } from "@/lib/mock-data";
+import { PAYMENT_METHODS } from "@/lib/mock-data";
 import { PaymentMethod } from "@/lib/types";
+import { useExpenseHub } from "@/lib/expense-hub-store";
 
 interface SettleUpModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export function SettleUpModal({
   onClose,
   preselectedUser,
 }: SettleUpModalProps) {
+  const { balances, currentUser, settleUp } = useExpenseHub();
   const [step, setStep] = useState<"select" | "confirm" | "success">("select");
   const [selectedUser, setSelectedUser] = useState(preselectedUser || "");
   const [amount, setAmount] = useState("");
@@ -35,35 +37,71 @@ export function SettleUpModal({
   const [note, setNote] = useState("");
   const [showMethodDropdown, setShowMethodDropdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  const youOwe = mockBalances.filter((b) => b.amount < 0);
-  const owedToYou = mockBalances.filter((b) => b.amount > 0);
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
 
-  const selectedBalance = mockBalances.find((b) => b.userId === selectedUser);
+    setStep("select");
+    setSelectedUser(preselectedUser || "");
+    setAmount("");
+    setDate(new Date().toISOString().split("T")[0]);
+    setPaymentMethod("cash");
+    setNote("");
+    setShowMethodDropdown(false);
+    setIsLoading(false);
+    setFormError("");
+  }, [isOpen, preselectedUser]);
+
+  const youOwe = balances.filter((b) => b.amount < 0);
+  const owedToYou = balances.filter((b) => b.amount > 0);
+
+  const selectedBalance = balances.find((b) => b.userId === selectedUser);
   const isPayingThem = selectedBalance && selectedBalance.amount < 0;
-  const suggestedAmount = selectedBalance
-    ? Math.abs(selectedBalance.amount)
-    : 0;
 
   const selectedMethod = PAYMENT_METHODS.find((m) => m.method === paymentMethod);
 
+  useEffect(() => {
+    if (selectedBalance) {
+      setAmount(Math.abs(selectedBalance.amount).toFixed(2));
+    }
+  }, [selectedBalance]);
+
   const handleUserSelect = (userId: string) => {
     setSelectedUser(userId);
-    const balance = mockBalances.find((b) => b.userId === userId);
+    const balance = balances.find((b) => b.userId === userId);
     if (balance) {
       setAmount(Math.abs(balance.amount).toFixed(2));
     }
   };
 
   const handleConfirm = () => {
+    setFormError("");
     setStep("confirm");
   };
 
   const handleSubmit = async () => {
-    setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    setStep("success");
+    try {
+      setFormError("");
+      setIsLoading(true);
+      await settleUp({
+        userId: selectedUser,
+        amount: Number.parseFloat(amount),
+        date,
+        paymentMethod,
+        note,
+      });
+      setStep("success");
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : "Unable to record this payment."
+      );
+      setStep("select");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleClose = () => {
@@ -291,6 +329,12 @@ export function SettleUpModal({
                         className="input"
                       />
                     </div>
+
+                    {formError ? (
+                      <div className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">
+                        {formError}
+                      </div>
+                    ) : null}
                   </motion.div>
                 )}
               </div>

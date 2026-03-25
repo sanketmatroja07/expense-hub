@@ -15,16 +15,17 @@ import {
 import { Navbar, MobileNav } from "@/components/layout";
 import { CreateGroupModal, AddExpenseModal, SettleUpModal } from "@/components/modals";
 import { cn, formatCurrency, getInitials } from "@/lib/utils";
-import { groups as mockGroups } from "@/lib/mock-data";
+import { useExpenseHub } from "@/lib/expense-hub-store";
 
 export default function GroupsPage() {
+  const { groups, currentUser } = useExpenseHub();
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showSettleUp, setShowSettleUp] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredGroups = mockGroups.filter((group) =>
+  const filteredGroups = groups.filter((group) =>
     group.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -69,7 +70,7 @@ export default function GroupsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredGroups.map((group, index) => {
                 const userBalance = group.members.find(
-                  (m) => m.id === "user-1"
+                  (m) => m.id === currentUser.id
                 )?.balance;
                 const isPositive = userBalance && userBalance > 0;
 

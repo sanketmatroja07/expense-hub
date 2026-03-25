@@ -4,54 +4,54 @@ import { motion } from "framer-motion";
 import {
   Wallet,
   TrendingUp,
-  TrendingDown,
   ArrowUpRight,
   ArrowDownRight,
   Calendar,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
-import { summaryData } from "@/lib/mock-data";
-
-const cards = [
-  {
-    id: "balance",
-    label: "Total Balance",
-    value: summaryData.totalBalance,
-    trend: summaryData.trend,
-    icon: Wallet,
-    colorClass: "from-primary-500 to-accent-500",
-    bgClass: "bg-gradient-to-br from-primary-50 to-accent-50",
-  },
-  {
-    id: "owe",
-    label: "You Owe",
-    value: summaryData.youOwe,
-    negative: true,
-    icon: TrendingDown,
-    colorClass: "from-danger-500 to-danger-600",
-    bgClass: "bg-danger-50",
-  },
-  {
-    id: "owed",
-    label: "You're Owed",
-    value: summaryData.youreOwed,
-    positive: true,
-    icon: TrendingUp,
-    colorClass: "from-success-500 to-success-600",
-    bgClass: "bg-success-50",
-  },
-  {
-    id: "month",
-    label: "This Month",
-    value: summaryData.thisMonth,
-    trend: summaryData.trend,
-    icon: Calendar,
-    colorClass: "from-warning-500 to-warning-600",
-    bgClass: "bg-warning-50",
-  },
-];
+import { useExpenseHub } from "@/lib/expense-hub-store";
 
 export function SummaryCards() {
+  const { summaryData } = useExpenseHub();
+  const cards = [
+    {
+      id: "balance",
+      label: "Total Balance",
+      value: summaryData.totalBalance,
+      trend: summaryData.trend,
+      icon: Wallet,
+      colorClass: "from-primary-500 to-accent-500",
+      bgClass: "bg-gradient-to-br from-primary-50 to-accent-50",
+    },
+    {
+      id: "owe",
+      label: "You Owe",
+      value: summaryData.youOwe,
+      negative: true,
+      icon: ArrowDownRight,
+      colorClass: "from-danger-500 to-danger-600",
+      bgClass: "bg-danger-50",
+    },
+    {
+      id: "owed",
+      label: "You're Owed",
+      value: summaryData.youreOwed,
+      positive: true,
+      icon: TrendingUp,
+      colorClass: "from-success-500 to-success-600",
+      bgClass: "bg-success-50",
+    },
+    {
+      id: "month",
+      label: "This Month",
+      value: summaryData.thisMonth,
+      trend: summaryData.trend,
+      icon: Calendar,
+      colorClass: "from-warning-500 to-warning-600",
+      bgClass: "bg-warning-50",
+    },
+  ];
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
       {cards.map((card, index) => (

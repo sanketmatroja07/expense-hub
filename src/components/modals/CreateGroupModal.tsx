@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -9,11 +9,11 @@ import {
   Trash2,
   Check,
   ChevronDown,
-  Image as ImageIcon,
 } from "lucide-react";
 import { cn, getInitials, generateId } from "@/lib/utils";
-import { GROUP_TYPES, users } from "@/lib/mock-data";
+import { GROUP_TYPES } from "@/lib/mock-data";
 import { GroupType } from "@/lib/types";
+import { useExpenseHub } from "@/lib/expense-hub-store";
 
 const currencies = [
   { code: "USD", symbol: "$", name: "US Dollar" },
@@ -39,6 +39,7 @@ interface InvitedMember {
 }
 
 export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
+  const { createGroup, users } = useExpenseHub();
   const [name, setName] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [selectedEmoji, setSelectedEmoji] = useState("👥");
@@ -51,6 +52,27 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
   const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<typeof users>([]);
+  const [formError, setFormError] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setName("");
+    setImage(null);
+    setSelectedEmoji("👥");
+    setShowEmojiPicker(false);
+    setMemberEmail("");
+    setInvitedMembers([]);
+    setGroupType("friends");
+    setCurrency("USD");
+    setSimplifyDebts(true);
+    setShowCurrencyDropdown(false);
+    setIsLoading(false);
+    setSuggestions([]);
+    setFormError("");
+  }, [isOpen]);
 
   const handleEmailChange = (value: string) => {
     setMemberEmail(value);
@@ -100,10 +122,26 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
   };
 
   const handleSubmit = async () => {
-    setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsLoading(false);
-    onClose();
+    try {
+      setFormError("");
+      setIsLoading(true);
+      await createGroup({
+        name,
+        emoji: selectedEmoji,
+        image,
+        invitedMembers,
+        groupType,
+        currency,
+        simplifyDebts,
+      });
+      onClose();
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : "Unable to create this group."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const selectedCurrency = currencies.find((c) => c.code === currency);
@@ -407,6 +445,12 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
               />
             </button>
           </div>
+
+          {formError ? (
+            <div className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">
+              {formError}
+            </div>
+          ) : null}
         </div>
 
         {/* Footer */}

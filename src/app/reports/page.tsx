@@ -29,12 +29,7 @@ import {
 import { Navbar, MobileNav } from "@/components/layout";
 import { AddExpenseModal } from "@/components/modals";
 import { cn, formatCurrency, getInitials } from "@/lib/utils";
-import {
-  monthlySpendingData,
-  categorySpendingData,
-  expenses as mockExpenses,
-  users,
-} from "@/lib/mock-data";
+import { useExpenseHub } from "@/lib/expense-hub-store";
 
 type DateRange = "week" | "month" | "year" | "custom";
 
@@ -65,14 +60,13 @@ const topPeople = [
   { name: "James", amount: 98.25, transactions: 3 },
 ];
 
-const topExpenses = mockExpenses
-  .sort((a, b) => b.amount - a.amount)
-  .slice(0, 5);
-
 export default function ReportsPage() {
+  const { monthlySpendingData, categorySpendingData, expenses, users } =
+    useExpenseHub();
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>("month");
   const [showDateDropdown, setShowDateDropdown] = useState(false);
+  const topExpenses = [...expenses].sort((a, b) => b.amount - a.amount).slice(0, 5);
 
   const dateRangeOptions = [
     { value: "week", label: "This Week" },
@@ -86,10 +80,10 @@ export default function ReportsPage() {
   )?.label;
 
   // Summary stats
-  const totalSpent = 731.23;
+  const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const avgDaily = totalSpent / 30;
-  const topCategory = "Food & Dining";
-  const savingsRate = 18.5;
+  const topCategory = categorySpendingData[0]?.name || "No category yet";
+  const savingsRate = totalSpent > 0 ? Math.min(65, Math.max(5, 30 - totalSpent / 80)) : 30;
 
   return (
     <div className="min-h-screen bg-neutral-50">

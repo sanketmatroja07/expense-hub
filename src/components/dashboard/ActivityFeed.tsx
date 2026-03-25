@@ -11,8 +11,9 @@ import {
   Receipt,
 } from "lucide-react";
 import { cn, formatCurrency, formatRelativeDate, getInitials } from "@/lib/utils";
-import { expenses as mockExpenses, CATEGORIES } from "@/lib/mock-data";
+import { CATEGORIES } from "@/lib/mock-data";
 import { Expense } from "@/lib/types";
+import { useExpenseHub } from "@/lib/expense-hub-store";
 
 interface ActivityFeedProps {
   expenses?: Expense[];
@@ -21,15 +22,16 @@ interface ActivityFeedProps {
 }
 
 export function ActivityFeed({
-  expenses = mockExpenses,
+  expenses,
   limit = 6,
   showLoadMore = true,
 }: ActivityFeedProps) {
+  const { expenses: storedExpenses, currentUser } = useExpenseHub();
   const [visibleCount, setVisibleCount] = useState(limit);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
-  const visibleExpenses = expenses.slice(0, visibleCount);
+  const activeExpenses = expenses ?? storedExpenses;
+  const visibleExpenses = activeExpenses.slice(0, visibleCount);
 
   const getCategoryInfo = (categoryName: string) => {
     return CATEGORIES.find((c) => c.name === categoryName) || CATEGORIES[7];
@@ -45,7 +47,7 @@ export function ActivityFeed({
         <AnimatePresence>
           {visibleExpenses.map((expense, index) => {
             const category = getCategoryInfo(expense.category);
-            const isPaidByMe = expense.paidBy.id === "user-1";
+            const isPaidByMe = expense.paidBy.id === currentUser.id;
             const splitCount = expense.splits.length;
 
             return (
@@ -57,7 +59,6 @@ export function ActivityFeed({
                 onMouseEnter={() => setHoveredId(expense.id)}
                 onMouseLeave={() => {
                   setHoveredId(null);
-                  setOpenMenuId(null);
                 }}
                 className="relative px-5 py-4 hover:bg-neutral-50/50 transition-colors"
               >
@@ -190,7 +191,7 @@ export function ActivityFeed({
         </AnimatePresence>
       </div>
 
-      {showLoadMore && visibleCount < expenses.length && (
+      {showLoadMore && visibleCount < activeExpenses.length && (
         <div className="px-5 py-4 border-t border-neutral-100">
           <button
             onClick={() => setVisibleCount((c) => c + 5)}

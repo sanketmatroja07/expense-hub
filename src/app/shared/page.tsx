@@ -15,11 +15,13 @@ import {
 import { Navbar, MobileNav } from "@/components/layout";
 import { AddExpenseModal, SettleUpModal } from "@/components/modals";
 import { cn, formatCurrency, formatRelativeDate, getInitials } from "@/lib/utils";
-import { expenses as mockExpenses, groups as mockGroups, CATEGORIES } from "@/lib/mock-data";
+import { CATEGORIES } from "@/lib/mock-data";
+import { useExpenseHub } from "@/lib/expense-hub-store";
 
 type StatusFilter = "all" | "pending" | "partial" | "settled";
 
 export default function SharedPage() {
+  const { expenses, groups, currentUser } = useExpenseHub();
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showSettleUp, setShowSettleUp] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -28,7 +30,7 @@ export default function SharedPage() {
   const [showGroupDropdown, setShowGroupDropdown] = useState(false);
 
   // Filter to shared expenses only (splits with multiple people)
-  const sharedExpenses = mockExpenses.filter((exp) => exp.splits.length > 1);
+  const sharedExpenses = expenses.filter((exp) => exp.splits.length > 1);
 
   // Apply filters
   const filteredExpenses = sharedExpenses.filter((exp) => {
@@ -68,7 +70,7 @@ export default function SharedPage() {
   const selectedGroupData =
     selectedGroup === "all"
       ? null
-      : mockGroups.find((g) => g.id === selectedGroup);
+      : groups.find((g) => g.id === selectedGroup);
 
   return (
     <div className="min-h-screen bg-neutral-50">
@@ -154,7 +156,7 @@ export default function SharedPage() {
                         <Users className="w-5 h-5 text-neutral-400" />
                         <span className="text-sm font-medium">All Groups</span>
                       </button>
-                      {mockGroups.map((group) => (
+                      {groups.map((group) => (
                         <button
                           key={group.id}
                           onClick={() => {
@@ -227,9 +229,9 @@ export default function SharedPage() {
             <div className="card divide-y divide-neutral-50">
               {filteredExpenses.map((expense, index) => {
                 const category = getCategoryInfo(expense.category);
-                const isPaidByMe = expense.paidBy.id === "user-1";
+                const isPaidByMe = expense.paidBy.id === currentUser.id;
                 const myShare = expense.splits.find(
-                  (s) => s.userId === "user-1"
+                  (s) => s.userId === currentUser.id
                 );
 
                 return (

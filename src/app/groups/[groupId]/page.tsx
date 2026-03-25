@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 import { Navbar, MobileNav } from "@/components/layout";
 import { AddExpenseModal, SettleUpModal } from "@/components/modals";
-import { CATEGORIES, currentUser, expenses, groups } from "@/lib/mock-data";
+import { CATEGORIES } from "@/lib/mock-data";
+import { useExpenseHub } from "@/lib/expense-hub-store";
 import { cn, formatCurrency, formatDate, getInitials } from "@/lib/utils";
 
 interface GroupDetailPageProps {
@@ -22,6 +23,7 @@ interface GroupDetailPageProps {
 }
 
 export default function GroupDetailPage({ params }: GroupDetailPageProps) {
+  const { currentUser, expenses, groups } = useExpenseHub();
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showSettleUp, setShowSettleUp] = useState(false);
 
@@ -304,7 +306,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                   <h2 className="text-lg font-semibold text-neutral-900">Next Step</h2>
                 </div>
                 <p className="text-sm text-neutral-500 leading-6">
-                  This demo page is wired to the same mock group data as the dashboard. You can use it now to inspect balances and recent shared expenses without hitting a broken route.
+                  Review group balances, recent expenses, and quick settlement context from the same saved data the rest of the app uses.
                 </p>
               </section>
             </div>

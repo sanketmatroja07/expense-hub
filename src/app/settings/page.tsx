@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSearchParams } from "next/navigation";
 import {
   User,
   CreditCard,
@@ -20,7 +21,7 @@ import {
 import { Navbar, MobileNav } from "@/components/layout";
 import { AddExpenseModal } from "@/components/modals";
 import { cn, getInitials } from "@/lib/utils";
-import { currentUser } from "@/lib/mock-data";
+import { useExpenseHub } from "@/lib/expense-hub-store";
 
 type SettingsTab =
   | "profile"
@@ -35,9 +36,14 @@ const paymentMethods = [
 ];
 
 export default function SettingsPage() {
+  const searchParams = useSearchParams();
+  const { currentUser, preferences, updateCurrentUser, updatePreferences } =
+    useExpenseHub();
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
-  const [theme, setTheme] = useState<"light" | "dark" | "auto">("auto");
+  const [theme, setTheme] = useState<"light" | "dark" | "auto">(
+    preferences.theme
+  );
 
   // Profile state
   const [name, setName] = useState(currentUser.name);
@@ -47,19 +53,12 @@ export default function SettingsPage() {
 
   // Notification settings
   const [notifications, setNotifications] = useState({
-    emailExpenses: true,
-    emailPayments: true,
-    emailWeeklySummary: false,
-    pushExpenses: true,
-    pushPayments: true,
-    pushReminders: true,
+    ...preferences.notifications,
   });
 
   // Privacy settings
   const [privacy, setPrivacy] = useState({
-    allowAddToGroups: "everyone" as "everyone" | "contacts" | "none",
-    showExpenseDetails: true,
-    showActivity: true,
+    ...preferences.privacy,
   });
 
   const tabs = [
@@ -79,6 +78,51 @@ export default function SettingsPage() {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  useEffect(() => {
+    const requestedTab = searchParams.get("tab");
+    if (
+      requestedTab === "profile" ||
+      requestedTab === "payments" ||
+      requestedTab === "notifications" ||
+      requestedTab === "privacy" ||
+      requestedTab === "appearance"
+    ) {
+      setActiveTab(requestedTab);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    setTheme(preferences.theme);
+    setNotifications(preferences.notifications);
+    setPrivacy(preferences.privacy);
+  }, [preferences]);
+
+  const updateNotificationPreference = (
+    key: keyof typeof notifications,
+    value: boolean
+  ) => {
+    setNotifications((prev) => {
+      const next = { ...prev, [key]: value };
+      updatePreferences({ notifications: next });
+      return next;
+    });
+  };
+
+  const updatePrivacyPreference = (
+    updates: Partial<typeof privacy>
+  ) => {
+    setPrivacy((prev) => {
+      const next = { ...prev, ...updates };
+      updatePreferences({ privacy: next });
+      return next;
+    });
+  };
+
+  const selectTheme = (nextTheme: "light" | "dark" | "auto") => {
+    setTheme(nextTheme);
+    updatePreferences({ theme: nextTheme });
   };
 
   return (
@@ -208,7 +252,19 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="mt-6 pt-6 border-t border-neutral-100 flex justify-end">
-                      <button className="btn-primary">Save Changes</button>
+                      <button
+                        onClick={() =>
+                          updateCurrentUser({
+                            name: name.trim(),
+                            email: email.trim(),
+                            phone: phone.trim(),
+                            avatar: avatar || undefined,
+                          })
+                        }
+                        className="btn-primary"
+                      >
+                        Save Changes
+                      </button>
                     </div>
                   </motion.div>
                 )}
@@ -326,11 +382,12 @@ export default function SettingsPage() {
                             </div>
                             <button
                               onClick={() =>
-                                setNotifications((prev) => ({
-                                  ...prev,
-                                  [item.key]:
-                                    !prev[item.key as keyof typeof prev],
-                                }))
+                                updateNotificationPreference(
+                                  item.key as keyof typeof notifications,
+                                  !notifications[
+                                    item.key as keyof typeof notifications
+                                  ]
+                                )
                               }
                               className={cn(
                                 "relative w-12 h-7 rounded-full transition-colors",
@@ -392,11 +449,12 @@ export default function SettingsPage() {
                             </div>
                             <button
                               onClick={() =>
-                                setNotifications((prev) => ({
-                                  ...prev,
-                                  [item.key]:
-                                    !prev[item.key as keyof typeof prev],
-                                }))
+                                updateNotificationPreference(
+                                  item.key as keyof typeof notifications,
+                                  !notifications[
+                                    item.key as keyof typeof notifications
+                                  ]
+                                )
                               }
                               className={cn(
                                 "relative w-12 h-7 rounded-full transition-colors",
@@ -451,10 +509,10 @@ export default function SettingsPage() {
                             <button
                               key={option.value}
                               onClick={() =>
-                                setPrivacy((prev) => ({
-                                  ...prev,
-                                  allowAddToGroups: option.value as typeof prev.allowAddToGroups,
-                                }))
+                                updatePrivacyPreference({
+                                  allowAddToGroups:
+                                    option.value as typeof privacy.allowAddToGroups,
+                                })
                               }
                               className={cn(
                                 "w-full flex items-center justify-between p-3 rounded-xl border-2 transition-all",
@@ -487,10 +545,9 @@ export default function SettingsPage() {
                           </div>
                           <button
                             onClick={() =>
-                              setPrivacy((prev) => ({
-                                ...prev,
-                                showExpenseDetails: !prev.showExpenseDetails,
-                              }))
+                              updatePrivacyPreference({
+                                showExpenseDetails: !privacy.showExpenseDetails,
+                              })
                             }
                             className={cn(
                               "relative w-12 h-7 rounded-full transition-colors",
@@ -519,10 +576,9 @@ export default function SettingsPage() {
                           </div>
                           <button
                             onClick={() =>
-                              setPrivacy((prev) => ({
-                                ...prev,
-                                showActivity: !prev.showActivity,
-                              }))
+                              updatePrivacyPreference({
+                                showActivity: !privacy.showActivity,
+                              })
                             }
                             className={cn(
                               "relative w-12 h-7 rounded-full transition-colors",
@@ -562,7 +618,7 @@ export default function SettingsPage() {
                       <p className="font-medium text-neutral-900 mb-4">Theme</p>
                       <div className="grid grid-cols-3 gap-3">
                         <button
-                          onClick={() => setTheme("light")}
+                          onClick={() => selectTheme("light")}
                           className={cn(
                             "p-4 rounded-xl border-2 transition-all text-center",
                             theme === "light"
@@ -574,7 +630,7 @@ export default function SettingsPage() {
                           <p className="text-sm font-medium">Light</p>
                         </button>
                         <button
-                          onClick={() => setTheme("dark")}
+                          onClick={() => selectTheme("dark")}
                           className={cn(
                             "p-4 rounded-xl border-2 transition-all text-center",
                             theme === "dark"
@@ -586,7 +642,7 @@ export default function SettingsPage() {
                           <p className="text-sm font-medium">Dark</p>
                         </button>
                         <button
-                          onClick={() => setTheme("auto")}
+                          onClick={() => selectTheme("auto")}
                           className={cn(
                             "p-4 rounded-xl border-2 transition-all text-center",
                             theme === "auto"

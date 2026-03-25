@@ -21,8 +21,8 @@ import {
   UserCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { notifications as mockNotifications, currentUser } from "@/lib/mock-data";
 import { getInitials } from "@/lib/utils";
+import { useExpenseHub } from "@/lib/expense-hub-store";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -41,11 +41,11 @@ const userMenuItems = [
 
 export function Navbar() {
   const pathname = usePathname();
+  const { notifications, currentUser, markAllNotificationsRead, unreadCount } =
+    useExpenseHub();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const unreadCount = mockNotifications.filter((n) => !n.read).length;
 
   return (
     <>
@@ -123,12 +123,15 @@ export function Navbar() {
                         <h3 className="font-semibold text-neutral-900">
                           Notifications
                         </h3>
-                        <button className="text-xs text-primary-600 hover:text-primary-700 font-medium">
+                        <button
+                          onClick={markAllNotificationsRead}
+                          className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                        >
                           Mark all read
                         </button>
                       </div>
                       <div className="max-h-[400px] overflow-y-auto">
-                        {mockNotifications.slice(0, 5).map((notif) => (
+                        {notifications.slice(0, 5).map((notif) => (
                           <div
                             key={notif.id}
                             className={cn(
