@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { signOut } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -23,7 +24,6 @@ import {
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/utils";
 import { useExpenseHub } from "@/lib/expense-hub-store";
-import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -56,13 +56,7 @@ export function Navbar() {
       setUserMenuOpen(false);
       setNotificationsOpen(false);
       setMobileMenuOpen(false);
-
-      const supabase = createClient();
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        throw error;
-      }
+      await signOut({ redirect: false });
 
       router.replace("/auth");
       router.refresh();

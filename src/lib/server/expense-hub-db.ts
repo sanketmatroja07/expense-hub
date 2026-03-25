@@ -7,20 +7,19 @@ import {
   type AuthIdentity,
   type ExpenseHubState,
 } from "@/lib/expense-hub-core";
+import { getMongoDb, usingMongoDb } from "@/lib/server/mongodb";
 
-const defaultDbPath = join(process.cwd(), "data", "expense-hub.sqlite");
-const databasePath = process.env.EXPENSE_HUB_DB_PATH || defaultDbPath;
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabaseBucket = process.env.SUPABASE_STORAGE_BUCKET || "expense-hub";
-const supabaseObjectPath =
-  process.env.SUPABASE_STORAGE_PATH || "state";
-
-let database: DatabaseSync | null = null;
-
-function usingHostedStorage() {
-  return Boolean(supabaseUrl && supabaseServiceRoleKey);
+interface AppStateDocument {
+  userId: string;
+  data: ExpenseHubState;
+  updatedAt: string;
 }
+
+const defaultDbPath = process.env.VERCEL
+  ? join("/tmp", "expense-hub.sqlite")
+  : join(process.cwd(), "data", "expense-hub.sqlite");
+const databasePath = process.env.EXPENSE_HUB_DB_PATH || defaultDbPath;
+let database: DatabaseSync | null = null;
 
 function getDatabase() {
   if (database) {
@@ -29,6 +28,17 @@ function getDatabase() {
 
   mkdirSync(dirname(databasePath), { recursive: true });
   database = new DatabaseSync(databasePath);
+  const existingColumns = database
+    .prepare("PRAGMA table_info(app_state)")
+    .all() as Array<{ name: string }>;
+  const hasUserScopedSchema = existingColumns.some(
+    (column) => column.name === "user_id"
+  );
+
+  if (existingColumns.length > 0 && !hasUserScopedSchema) {
+    database.exec("DROP TABLE app_state;");
+  }
+
   database.exec(`
     CREATE TABLE IF NOT EXISTS app_state (
       user_id TEXT PRIMARY KEY,
@@ -40,86 +50,33 @@ function getDatabase() {
   return database;
 }
 
-function getUserScopedObjectPath(userId: string) {
-  if (supabaseObjectPath.endsWith(".json")) {
-    return supabaseObjectPath.replace(/\.json$/, `-${userId}.json`);
-  }
-  return `${supabaseObjectPath.replace(/\/$/, "")}/${userId}.json`;
-}
+async function readMongoState(identity: AuthIdentity) {
+  const db = await getMongoDb();
+  const record = await db
+    .collection<AppStateDocument>("app_state")
+    .findOne({ userId: identity.id });
 
-async function supabaseRequest(
-  path: string,
-  init?: RequestInit & { expectedStatuses?: number[] }
-) {
-  const response = await fetch(`${supabaseUrl}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${supabaseServiceRoleKey}`,
-      apikey: `${supabaseServiceRoleKey}`,
-      ...(init?.headers || {}),
-    },
-  });
-
-  if (init?.expectedStatuses?.includes(response.status)) {
-    return response;
-  }
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Supabase request failed with ${response.status}.`);
-  }
-
-  return response;
-}
-
-async function ensureSupabaseBucket() {
-  await supabaseRequest("/storage/v1/bucket", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      id: supabaseBucket,
-      name: supabaseBucket,
-      public: false,
-    }),
-    expectedStatuses: [200, 201, 409, 400],
-  });
-}
-
-async function readSupabaseState(identity: AuthIdentity) {
-  await ensureSupabaseBucket();
-  const response = await supabaseRequest(
-    `/storage/v1/object/${supabaseBucket}/${getUserScopedObjectPath(identity.id)}`,
-    { method: "GET", expectedStatuses: [404] }
-  );
-
-  if (response.status === 404) {
+  if (!record?.data) {
     const seededState = createSeedStateForIdentity(identity);
-    await writeSupabaseState(identity, seededState, false);
+    await writeMongoState(identity, seededState);
     return seededState;
   }
 
-  const storedState = (await response.json()) as ExpenseHubState;
-  return syncStateWithIdentity(storedState, identity);
+  return syncStateWithIdentity(record.data, identity);
 }
 
-async function writeSupabaseState(
-  identity: AuthIdentity,
-  state: ExpenseHubState,
-  updateExisting: boolean = true
-) {
-  await ensureSupabaseBucket();
-  await supabaseRequest(
-    `/storage/v1/object/${supabaseBucket}/${getUserScopedObjectPath(identity.id)}`,
+async function writeMongoState(identity: AuthIdentity, state: ExpenseHubState) {
+  const db = await getMongoDb();
+  const syncedState = syncStateWithIdentity(state, identity);
+
+  await db.collection<AppStateDocument>("app_state").replaceOne(
+    { userId: identity.id },
     {
-      method: updateExisting ? "PUT" : "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-upsert": "true",
-      },
-      body: JSON.stringify(syncStateWithIdentity(state, identity)),
-    }
+      userId: identity.id,
+      data: syncedState,
+      updatedAt: new Date().toISOString(),
+    },
+    { upsert: true }
   );
 }
 
@@ -152,9 +109,10 @@ function writeLocalState(identity: AuthIdentity, state: ExpenseHubState) {
 export async function readExpenseHubState(
   identity: AuthIdentity
 ): Promise<ExpenseHubState> {
-  if (usingHostedStorage()) {
-    return readSupabaseState(identity);
+  if (usingMongoDb()) {
+    return readMongoState(identity);
   }
+
   return readLocalState(identity);
 }
 
@@ -162,10 +120,11 @@ export async function writeExpenseHubState(
   identity: AuthIdentity,
   state: ExpenseHubState
 ) {
-  if (usingHostedStorage()) {
-    await writeSupabaseState(identity, state);
+  if (usingMongoDb()) {
+    await writeMongoState(identity, state);
     return;
   }
+
   writeLocalState(identity, state);
 }
 

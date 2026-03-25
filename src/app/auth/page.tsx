@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, LockKeyhole, Mail, User2, Wallet } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 type AuthMode = "sign-in" | "sign-up";
@@ -35,16 +35,16 @@ export default function AuthPage() {
     setSuccessMessage("");
 
     try {
-      const supabase = createClient();
-
       if (mode === "sign-in") {
-        const { error } = await supabase.auth.signInWithPassword({
+        const result = await signIn("credentials", {
           email: email.trim(),
           password,
+          redirect: false,
+          callbackUrl: redirectedFrom,
         });
 
-        if (error) {
-          throw error;
+        if (result?.error) {
+          throw new Error("Invalid email or password.");
         }
 
         router.replace(redirectedFrom);
@@ -52,31 +52,37 @@ export default function AuthPage() {
         return;
       }
 
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          data: {
-            full_name: fullName.trim(),
-          },
+      const response = await fetch("/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          name: fullName.trim(),
+          email: email.trim(),
+          password,
+        }),
       });
 
-      if (error) {
-        throw error;
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to create your account.");
       }
 
-      if (data.session) {
-        router.replace(redirectedFrom);
-        router.refresh();
-        return;
+      const result = await signIn("credentials", {
+        email: email.trim(),
+        password,
+        redirect: false,
+        callbackUrl: redirectedFrom,
+      });
+
+      if (result?.error) {
+        throw new Error("Your account was created, but sign in failed. Please try again.");
       }
 
-      setSuccessMessage(
-        "Check your email to confirm your account, then sign in to continue."
-      );
-      setPassword("");
-      setMode("sign-in");
+      setSuccessMessage("Account created. Taking you into ExpenseHub...");
+      router.replace(redirectedFrom);
+      router.refresh();
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Unable to continue right now."

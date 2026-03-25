@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOptionalAuthIdentity } from "@/lib/supabase/auth";
+import { getOptionalAuthIdentity } from "@/lib/auth";
 import { readExpenseHubState } from "@/lib/server/expense-hub-db";
 
 export const dynamic = "force-dynamic";

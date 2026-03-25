@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { markAllNotificationsReadInState } from "@/lib/expense-hub-core";
-import { getOptionalAuthIdentity } from "@/lib/supabase/auth";
+import { getOptionalAuthIdentity } from "@/lib/auth";
 import { mutateExpenseHubState } from "@/lib/server/expense-hub-db";
 
 export async function POST() {

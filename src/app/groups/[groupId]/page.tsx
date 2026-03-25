@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getOptionalAuthIdentity } from "@/lib/supabase/auth";
+import { getOptionalAuthIdentity } from "@/lib/auth";
 import { readExpenseHubState } from "@/lib/server/expense-hub-db";
 import { GroupDetailClient } from "./GroupDetailClient";
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateCurrentUserInState } from "@/lib/expense-hub-core";
-import { getOptionalAuthIdentity } from "@/lib/supabase/auth";
-import { createClient } from "@/lib/supabase/server";
+import { getOptionalAuthIdentity } from "@/lib/auth";
+import { updateAuthUserName } from "@/lib/server/auth-user-store";
 import type { User } from "@/lib/types";
 import { mutateExpenseHubState } from "@/lib/server/expense-hub-db";
 
@@ -15,14 +15,7 @@ export async function PATCH(request: NextRequest) {
 
   const nextName = updates.name?.trim();
   if (nextName && nextName !== identity.name) {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.updateUser({
-      data: { full_name: nextName },
-    });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
+    await updateAuthUserName(identity.id, nextName);
   }
 
   const { email: _ignoredEmail, ...remainingUpdates } = updates;
